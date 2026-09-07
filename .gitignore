@@ -1,2 +1,5 @@
 .env
+build/
+dist/
+*.spec
 nasa_apod.jpg
