@@ -3,11 +3,13 @@ import requests
 import ctypes
 from dotenv import load_dotenv
 
+
 APOD_API = "https://api.nasa.gov/planetary/apod"
 
 def main():
     """ Main Function """
-    get_wallpaper()
+    wallpaper_path = get_wallpaper()
+    set_wallpaper(wallpaper_path)
    
 
 
@@ -43,7 +45,21 @@ def get_wallpaper():
         file.write(apod_image_response.content)
     
     print("Download success")
-    return True
-    
+    return wallpaper_path
+
+def set_wallpaper(wallpaper_path):
+    wallpaper_action = 20
+    update_user_profile = 0x01
+    notify_change = 0x02
+
+    try:
+        ctypes.windll.user32.SystemParametersInfoW(wallpaper_action,0,wallpaper_path,update_user_profile | notify_change)
+        print("Wallpaper Set")
+        return True
+
+    except Exception as e:
+        print(f"Error changing wallpaper - {e}")
+        return False
+
 
 main()
