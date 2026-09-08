@@ -1,22 +1,30 @@
 import os
 import requests
 import ctypes
-from PIL import Image
+from PIL import Image, ImageTk
 from dotenv import load_dotenv
+import tkinter as tk
 
 
 APOD_API = "https://api.nasa.gov/planetary/apod"
 
 def main():
     """ Main Function """
-    # Get the Wallpaper from the APOD API
-    wallpaper_path = get_wallpaper()
+    # Get the Wallpaper, Title and Description from the APOD API
+    response = get_wallpaper()
+
+    wallpaper_path = response[0]
+    apod_title = response[1]
+    apod_description = response[2]
 
     # Fit it to the given screen
     get_fit_wallpaper(wallpaper_path, 1920,1080)
 
     # Set the wallpaper as the background for the computer
     set_wallpaper(wallpaper_path)
+
+    # Open a window that displays the flavour text of the image recieved
+    display_window(apod_title, apod_description, wallpaper_path)
    
 
 
@@ -39,6 +47,11 @@ def get_wallpaper():
 
     if apod_data["media_type"] == "image":
         apod_url = apod_data.get("hdurl", apod_data["url"])
+        apod_title = apod_data["title"]
+        apod_description = apod_data["explanation"]
+        
+
+    
     
     else:
         print("No image found")
@@ -53,8 +66,11 @@ def get_wallpaper():
     with open(wallpaper_path,"wb") as file:
         file.write(apod_image_response.content)
     
+
     print("Download success")
-    return wallpaper_path
+    output = [wallpaper_path, apod_title, apod_description]
+
+    return output
 
 def set_wallpaper(wallpaper_path):
     """Sets the image given at a path to be the wallpaper for the computer"""
@@ -98,4 +114,32 @@ def get_fit_wallpaper(wallpaper_path, screen_width, screen_height):
 
     background.save(wallpaper_path)
     print("Wallpaper fitted :)")
+
+def display_window(apod_title, apod_description, apod_image_path):
+    """ Creates a GUI with the Description for todays APOD """
+    # Creates the root for the application
+    display = tk.Tk()
+
+    # Sets the title to be the title given by the APOD API
+    display.title(f"APOD : {apod_title}")
+
+    # Sets the size of the window
+    display.geometry("500x500")
+
+    # Resizes and adds the image to the application
+    img = Image.open(apod_image_path)
+
+    img.thumbnail((500,400), Image.Resampling.LANCZOS)
+
+    image = ImageTk.PhotoImage(img)
+    image_panel = tk.Label(display, image = image)
+    image_panel.pack(side = "top", fill = "both", expand = "yes")
+
+    #adds the text description of the application
+    label_text = tk.Label(display, text = apod_description, wraplength=450)
+    label_text.pack(side = "left", fill = "x", expand = "yes")
+
+    print("GUI Made!")
+    display.mainloop()
+
 main()
