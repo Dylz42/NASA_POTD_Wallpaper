@@ -13,18 +13,26 @@ def main():
     # Get the Wallpaper, Title and Description from the APOD API
     response = get_wallpaper()
 
-    wallpaper_path = response[0]
-    apod_title = response[1]
-    apod_description = response[2]
+    if response is not None:
+        wallpaper_path, apod_title, apod_description, apod_video_url = response
 
+
+    else:
+        wallpaper_path = None
+        apod_title = "No Astronomy Picture of the Day"
+        apod_description = "Sorry but there doesnt seem to be a suitable Astronomy Picture of the Day at the moment"
+        apod_video_url = None
+
+
+    if wallpaper_path is not None:
     # Fit it to the given screen
-    get_fit_wallpaper(wallpaper_path, 1920,1080)
+        get_fit_wallpaper(wallpaper_path, 1920,1080)
 
     # Set the wallpaper as the background for the computer
-    set_wallpaper(wallpaper_path)
+        set_wallpaper(wallpaper_path)
 
     # Open a window that displays the flavour text of the image recieved
-    display_window(apod_title, apod_description, wallpaper_path)
+    display_window(apod_title, apod_description, wallpaper_path, apod_video_url)
    
 
 
@@ -46,18 +54,37 @@ def get_wallpaper():
     apod_data = response.json()
 
     if apod_data["media_type"] == "image":
-        apod_url = apod_data.get("hdurl", apod_data["url"])
+        apod_url = apod_data.get("hdurl") or apod_data.get("url")
         apod_title = apod_data["title"]
         apod_description = apod_data["explanation"]
+        apod_video_url = None
         
+    elif apod_data["media_type"] == "video":
+        apod_url = apod_data.get("thumbnail_url")
+        apod_title = apod_data["title"]
+        apod_description = apod_data["explanation"]
+        apod_video_url = apod_data["url"]
 
     
     
     else:
-        print("No image found")
+        print("No supported image format")
         return None
+    
+    
+    if not apod_url:
+        print("No usable image url was returned by NASA")
+        apod_title = apod_data["title"]
+        apod_description = apod_data["explanation"]
+        output = [None, apod_title, apod_description, apod_video_url]
+
+        return output
+
+    
 
     apod_image_response = requests.get(apod_url, timeout = 30)
+
+
     apod_image_response.raise_for_status()
     
     # Download the image and set the filename
@@ -68,7 +95,7 @@ def get_wallpaper():
     
 
     print("Download success")
-    output = [wallpaper_path, apod_title, apod_description]
+    output = [wallpaper_path, apod_title, apod_description, apod_video_url]
 
     return output
 
@@ -115,7 +142,7 @@ def get_fit_wallpaper(wallpaper_path, screen_width, screen_height):
     background.save(wallpaper_path)
     print("Wallpaper fitted :)")
 
-def display_window(apod_title, apod_description, apod_image_path):
+def display_window(apod_title, apod_description, apod_image_path, apod_video_url):
     """ Creates a GUI with the Description for todays APOD """
     # Creates the root for the application
     display = tk.Tk()
@@ -127,13 +154,19 @@ def display_window(apod_title, apod_description, apod_image_path):
     display.geometry("500x500")
 
     # Resizes and adds the image to the application
-    img = Image.open(apod_image_path)
+    if apod_image_path is not None:
+        img = Image.open(apod_image_path)
 
-    img.thumbnail((500,400), Image.Resampling.LANCZOS)
+        img.thumbnail((500,400), Image.Resampling.LANCZOS)
 
-    image = ImageTk.PhotoImage(img)
-    image_panel = tk.Label(display, image = image)
-    image_panel.pack(side = "top", fill = "both", expand = "yes")
+        image = ImageTk.PhotoImage(img)
+        image_panel = tk.Label(display, image = image)
+        image_panel.pack(side = "top", fill = "both", expand = "yes")
+    
+    elif apod_video_url is not None:
+        video_link = tk.Label(display, text = apod_video_url, wraplength=200)
+        video_link.pack(side = "top", fill = "x", expand = "yes")
+
 
     #adds the text description of the application
     label_text = tk.Label(display, text = apod_description, wraplength=450)
