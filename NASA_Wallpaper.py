@@ -1,6 +1,7 @@
 import os
 import requests
 import ctypes
+import cv2
 from PIL import Image, ImageTk
 from dotenv import load_dotenv
 import tkinter as tk
@@ -14,7 +15,7 @@ def main():
     response = get_wallpaper()
 
     if response is not None:
-        wallpaper_path, apod_title, apod_description, apod_video_url = response
+        wallpaper_path, apod_title, apod_description, apod_video_url, media_type = response
 
 
     else:
@@ -22,6 +23,7 @@ def main():
         apod_title = "No Astronomy Picture of the Day"
         apod_description = "Sorry but there doesnt seem to be a suitable Astronomy Picture of the Day at the moment"
         apod_video_url = None
+        media_type = None
 
 
     if wallpaper_path is not None:
@@ -32,7 +34,7 @@ def main():
         set_wallpaper(wallpaper_path)
 
     # Open a window that displays the flavour text of the image recieved
-    display_window(apod_title, apod_description, wallpaper_path, apod_video_url)
+    display_window(apod_title, apod_description, wallpaper_path, apod_video_url, media_type)
    
 
 
@@ -58,12 +60,14 @@ def get_wallpaper():
         apod_title = apod_data["title"]
         apod_description = apod_data["explanation"]
         apod_video_url = None
+        media_type = apod_data["media_type"]
         
     elif apod_data["media_type"] == "video":
-        apod_url = apod_data.get("thumbnail_url")
+        apod_url = None
         apod_title = apod_data["title"]
         apod_description = apod_data["explanation"]
         apod_video_url = apod_data["url"]
+        media_type = apod_data["media_type"]
 
     
     
@@ -74,9 +78,7 @@ def get_wallpaper():
     
     if not apod_url:
         print("No usable image url was returned by NASA")
-        apod_title = apod_data["title"]
-        apod_description = apod_data["explanation"]
-        output = [None, apod_title, apod_description, apod_video_url]
+        output = [None, apod_title, apod_description, apod_video_url, media_type]
 
         return output
 
@@ -95,7 +97,7 @@ def get_wallpaper():
     
 
     print("Download success")
-    output = [wallpaper_path, apod_title, apod_description, apod_video_url]
+    output = [wallpaper_path, apod_title, apod_description, apod_video_url, media_type]
 
     return output
 
@@ -142,7 +144,7 @@ def get_fit_wallpaper(wallpaper_path, screen_width, screen_height):
     background.save(wallpaper_path)
     print("Wallpaper fitted :)")
 
-def display_window(apod_title, apod_description, apod_image_path, apod_video_url):
+def display_window(apod_title, apod_description, apod_image_path, apod_video_url, media_type):
     """ Creates a GUI with the Description for todays APOD """
     # Creates the root for the application
     display = tk.Tk()
@@ -151,10 +153,10 @@ def display_window(apod_title, apod_description, apod_image_path, apod_video_url
     display.title(f"APOD : {apod_title}")
 
     # Sets the size of the window
-    display.geometry("500x500")
+    display.geometry("500x600")
 
     # Resizes and adds the image to the application
-    if apod_image_path is not None:
+    if media_type == "image":
         img = Image.open(apod_image_path)
 
         img.thumbnail((500,400), Image.Resampling.LANCZOS)
@@ -163,16 +165,43 @@ def display_window(apod_title, apod_description, apod_image_path, apod_video_url
         image_panel = tk.Label(display, image = image)
         image_panel.pack(side = "top", fill = "both", expand = "yes")
     
-    elif apod_video_url is not None:
-        video_link = tk.Label(display, text = apod_video_url, wraplength=200)
-        video_link.pack(side = "top", fill = "x", expand = "yes")
-
+    elif media_type == "video":
+        video_panel = tk.Label(display)
+        video_panel.pack(side = "top", fill = "both", expand = "yes")
+        play_video(apod_video_url, video_panel)
 
     #adds the text description of the application
     label_text = tk.Label(display, text = apod_description, wraplength=450)
-    label_text.pack(side = "left", fill = "x", expand = "yes")
+    label_text.pack(side = "top", fill = "both", expand = "yes")
 
     print("GUI Made!")
     display.mainloop()
+
+def play_video(video_url, video_panel):
+    """Play a video on the window based on the given link"""
+    video = cv2.VideoCapture(video_url)
+
+    def update_frame():
+        """ Update the frame displayed to create the video"""
+        success, frame = video.read()
+
+        if success:
+            
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            image = Image.fromarray(frame)
+            image.thumbnail((600, 400), Image.Resampling.NEAREST)
+
+            photo = ImageTk.PhotoImage(image)
+
+            video_panel.config(image=photo)
+            video_panel.image = photo
+
+            # Show the video at specified fps
+            video_panel.after(42, update_frame)
+        else:
+            video.release()
+
+    update_frame()
 
 main()
