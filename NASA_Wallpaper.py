@@ -179,7 +179,7 @@ def display_window(apod_title, apod_description, apod_image_path, apod_video_url
 
 def play_video(video_url, video_panel):
     """Play a video on the window based on the given link"""
-    video = cv2.VideoCapture(video_url)
+    video = cv2.VideoCapture(video_url) # pylint: disable=E1101
 
     def update_frame():
         """ Update the frame displayed to create the video"""
@@ -187,7 +187,7 @@ def play_video(video_url, video_panel):
 
         if success:
             
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # pylint: disable=E1101
 
             image = Image.fromarray(frame)
             image.thumbnail((600, 400), Image.Resampling.NEAREST)
