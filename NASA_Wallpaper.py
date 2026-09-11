@@ -51,7 +51,8 @@ def get_wallpaper():
 
     # Call the APOD API
     response = requests.get(APOD_API, params=params, timeout = 8)
-    response.raise_for_status()
+    if response.status_code is not 200:
+        return None
 
     apod_data = response.json()
 
