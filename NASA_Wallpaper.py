@@ -1,4 +1,6 @@
 import os
+import re
+import html
 import requests
 import ctypes
 import cv2
@@ -7,7 +9,7 @@ from dotenv import load_dotenv
 import tkinter as tk
 
 
-APOD_API = "https://api.nasa.gov/planetary/apod"
+APOD_API = "https://science.nasa.gov/wp-json/wp/v2/apod-basic/"
 
 def main():
     """ Main Function """
@@ -15,14 +17,14 @@ def main():
     response = get_wallpaper()
 
     if response is not None:
-        wallpaper_path, apod_title, apod_description, apod_video_url, media_type = response
+        wallpaper_path, apod_title, apod_description, apod_media_url, media_type = response
 
 
     else:
         wallpaper_path = None
         apod_title = "No Astronomy Picture of the Day"
         apod_description = "Sorry but there doesnt seem to be a suitable Astronomy Picture of the Day at the moment"
-        apod_video_url = None
+        apod_media_url = None
         media_type = None
 
 
@@ -34,7 +36,7 @@ def main():
         set_wallpaper(wallpaper_path)
 
     # Open a window that displays the flavour text of the image recieved
-    display_window(apod_title, apod_description, wallpaper_path, apod_video_url, media_type)
+    display_window(apod_title, apod_description, wallpaper_path, apod_media_url, media_type)
    
 
 
@@ -46,61 +48,141 @@ def get_wallpaper():
 
     params = {
         "api_key": nasa_key,
-        "thumbs": True
     }
 
     # Call the APOD API
-    response = requests.get(APOD_API, params=params, timeout = 8)
-    if response.status_code is not 200:
+
+    try:
+        response = requests.get(APOD_API, params=params, timeout = 8)
+        response.raise_for_status()
+
+    except requests.RequestException as error:
+        print(f"Error contacting NASA APOD API: {error}")
         return None
 
     apod_data = response.json()
 
-    if apod_data["media_type"] == "image":
-        apod_url = apod_data.get("hdurl") or apod_data.get("url")
-        apod_title = apod_data["title"]
-        apod_description = apod_data["explanation"]
-        apod_video_url = None
-        media_type = apod_data["media_type"]
-        
-    elif apod_data["media_type"] == "video":
-        apod_url = None
-        apod_title = apod_data["title"]
-        apod_description = apod_data["explanation"]
-        apod_video_url = apod_data["url"]
-        media_type = apod_data["media_type"]
+    if isinstance(apod_data, list):
+        if not apod_data:
+            print("NASA returned no APOD data.")
+            return None
 
-    
-    
+    apod_data = apod_data[0]
+
+    media_type = apod_data.get("media_type")
+    apod_title = apod_data.get("title", "Astronomy Picture of the Day")
+
+    apod_description = clean_html(
+        apod_data.get("explanation", "No description available.")
+    )
+
+    apod_page_url = (
+        apod_data.get("permalink")
+        or apod_data.get("url")
+    )
+
+    apod_image_url = apod_data.get("hdurl")
+
+    if media_type == "image":
+
+        if not apod_image_url:
+            print("NASA did not provide an image URL.")
+            return [
+                None,
+                apod_title,
+                apod_description,
+                apod_page_url,
+                media_type
+            ]
+
+        try:
+            apod_image_response = requests.get(
+                apod_image_url,
+                timeout=30
+            )
+
+            apod_image_response.raise_for_status()
+
+        except requests.RequestException as error:
+            print(f"Could not download APOD image: {error}")
+
+            return [
+                None,
+                apod_title,
+                apod_description,
+                apod_page_url,
+                media_type
+            ]
+
+        if not wallpaper_path:
+            print("WALLPAPER_PATH is not configured in .env")
+            return None
+
+        # Download the image
+        directory = os.path.dirname(wallpaper_path)
+
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+
+        with open(wallpaper_path, "wb") as file:
+            file.write(apod_image_response.content)
+
+        print("Download success")
+
+        return [
+            wallpaper_path,
+            apod_title,
+            apod_description,
+            apod_page_url,
+            media_type
+        ]
+
+    # Handle video and iframe data
+    elif media_type in ("video", "iframe"):
+
+        print(f"Today's APOD is a {media_type}.")
+        print(f"APOD page: {apod_page_url}")
+
+        return [
+            None,
+            apod_title,
+            apod_description,
+            apod_page_url,
+            media_type
+        ]
+
     else:
-        print("No supported image format")
-        return None
-    
-    
-    if not apod_url:
-        print("No usable image url was returned by NASA")
-        output = [None, apod_title, apod_description, apod_video_url, media_type]
+        print(f"Unsupported APOD media type: {media_type}")
 
-        return output
-
-    
-
-    apod_image_response = requests.get(apod_url, timeout = 30)
+        return [
+            None,
+            apod_title,
+            apod_description,
+            apod_page_url,
+            media_type
+        ]
 
 
-    apod_image_response.raise_for_status()
-    
-    # Download the image and set the filename
-    os.makedirs(os.path.dirname(wallpaper_path), exist_ok = True)
+def clean_html(text):
+    """Remove HTML tags from text returned by the new APOD API."""
 
-    with open(wallpaper_path,"wb") as file:
-        file.write(apod_image_response.content)
-    
+    if not text:
+        return ""
 
-    print("Download success")
-    output = [wallpaper_path, apod_title, apod_description, apod_video_url, media_type]
+    # Convert things such as &amp; into &
+    text = html.unescape(text)
 
-    return output
+    # Remove HTML tags
+    text = re.sub(r"<[^>]+>", "", text)
+
+    # Clean up excessive whitespace
+    text = " ".join(text.split())
+
+    # Remove the "Explanation:" prefix because we don't need it in the GUI
+    if text.startswith("Explanation:"):
+        text = text[len("Explanation:"):].strip()
+
+    return text
 
 def set_wallpaper(wallpaper_path):
     """Sets the image given at a path to be the wallpaper for the computer"""
