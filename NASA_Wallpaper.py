@@ -30,13 +30,12 @@ def main():
 
     if wallpaper_path is not None:
     # Fit it to the given screen
-        get_fit_wallpaper(wallpaper_path, 1920,1080)
+        fit_wallpaper_path = get_fit_wallpaper(wallpaper_path, 1920,1080)
 
-    # Set the wallpaper as the background for the computer
-        set_wallpaper(wallpaper_path)
-
+    if not fit_wallpaper_path:
+        fit_wallpaper_path = wallpaper_path
     # Open a window that displays the flavour text of the image recieved
-    display_window(apod_title, apod_description, wallpaper_path, apod_media_url, media_type)
+    display_window(apod_title, apod_description, wallpaper_path, fit_wallpaper_path, apod_media_url, media_type)
    
 
 
@@ -224,10 +223,23 @@ def get_fit_wallpaper(wallpaper_path, screen_width, screen_height):
     # Put the wallppaer on top of the black background
     background.paste(wallpaper, (center_x,center_y))
 
-    background.save(wallpaper_path)
-    print("Wallpaper fitted :)")
+    directory = os.path.dirname(wallpaper_path)
+    filename = os.path.basename(wallpaper_path)
 
-def display_window(apod_title, apod_description, apod_image_path, apod_video_url, media_type):
+
+    name, extension = os.path.splitext(filename)
+
+    fitted_wallpaper_path = os.path.join(directory, f"{name}_fitted{extension}")
+
+    # Save it separately instead of overwriting the original
+    background.save(fitted_wallpaper_path)
+
+    print(f"Wallpaper fitted: {fitted_wallpaper_path}")
+
+    # Return the location of the new image
+    return fitted_wallpaper_path
+
+def display_window(apod_title, apod_description, apod_image_path, apod_fitted_image_path, apod_video_url, media_type):
     """ Creates a GUI with the Description for todays APOD """
     # Creates the root for the application
     display = tk.Tk()
@@ -236,7 +248,7 @@ def display_window(apod_title, apod_description, apod_image_path, apod_video_url
     display.title(f"APOD : {apod_title}")
 
     # Sets the size of the window
-    display.geometry("500x600")
+    display.geometry("500x650")
 
     # Resizes and adds the image to the application
     if media_type == "image":
@@ -257,6 +269,14 @@ def display_window(apod_title, apod_description, apod_image_path, apod_video_url
     label_text = tk.Label(display, text = apod_description, wraplength=450)
     label_text.pack(side = "top", fill = "both", expand = "yes")
 
+    button_frame = tk.Frame(display)
+    button_frame.pack(pady=10)
+
+    background_button = tk.Button(button_frame, text="Set Background", command=lambda: set_wallpaper(apod_image_path))
+    fitted_background_button = tk.Button(button_frame, text="Set Fitted Background", command=lambda: set_wallpaper(apod_fitted_image_path))
+
+    background_button.pack(side="left")
+    fitted_background_button.pack(side="left")
     print("GUI Made!")
     display.mainloop()
 
