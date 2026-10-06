@@ -1,14 +1,18 @@
 import os
 import re
+import io
 import html
 import requests
 import ctypes
 import cv2
+import shutil
 import webbrowser
+import win32clipboard
 from PIL import Image, ImageTk
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 import tkinter as tk
+from tkinter import filedialog
 
 
 APOD_API = "https://science.nasa.gov/wp-json/wp/v2/apod-basic/"
@@ -270,11 +274,16 @@ def display_window(apod_title, apod_description, apod_image_path, apod_fitted_im
 
     # Sets the size of the window
     display.geometry("500x650")
-
+    display.resizable(False, False)
+    
     # Resizes and adds the image to the application
     if media_type == "image":
-        img = Image.open(apod_image_path) 
-        image_panel = tk.Label(display) 
+        img = Image.open(apod_image_path)
+        image_panel = tk.Label(display)
+        save_menu = tk.Menu(display, tearoff=0)
+        save_menu.add_command(label = "Save Image As...", command=lambda: save_image(apod_image_path))
+        save_menu.add_command(label = "Copy Image", command=lambda: copy_image(apod_image_path))
+        image_panel.bind("<Button-3>", lambda event: save(event,save_menu))
         image_panel.pack(side="top", fill="both", expand=True)
 
         if getattr(img, "is_animated", False):
@@ -285,8 +294,9 @@ def display_window(apod_title, apod_description, apod_image_path, apod_fitted_im
             
             img.thumbnail((500,400), Image.Resampling.LANCZOS)
             image = ImageTk.PhotoImage(img)
-            image_panel = tk.Label(display, image = image)
-            image_panel.pack(side = "top", fill = "both", expand = "yes")
+            image_panel.config(image = image)
+            image_panel.image = image
+            #image_panel.pack(side = "top", fill = "both", expand = "yes")
     
     elif media_type == "video":
         video_panel = tk.Label(display)
@@ -294,8 +304,13 @@ def display_window(apod_title, apod_description, apod_image_path, apod_fitted_im
         play_video(apod_video_url, video_panel)
 
     #adds the text description of the application
-    label_text = tk.Label(display, text = apod_description, wraplength=450)
-    label_text.pack(side = "top", fill = "both", expand = "yes")
+    background = display.cget("bg")
+    label_text = tk.Text(display, wrap="word",borderwidth=0, highlightthickness=0, height=10, bg=background)
+    label_text.insert("0.1", apod_description)
+    label_text.config(state="disabled")
+    label_text.pack(side = "top", fill = "both", expand = False)
+
+    
 
     button_frame = tk.Frame(display)
     button_frame.pack(pady=10)
@@ -372,4 +387,29 @@ def play_gif(gif_path, image_panel):
 
     update_frame(0)
 
+def save(event, menu):
+    """When used, create a menu to save the file"""
+    menu.tk_popup(event.x_root, event.y_root)
+
+def save_image(apod_image_path):
+    """Get the save location and save the file there"""
+    save_location = filedialog.asksaveasfilename(initialfile=os.path.basename(apod_image_path))
+    if save_location:
+        shutil.copy(apod_image_path,save_location)
+
+def copy_image(apod_image_path):
+    """Copy the image to the clipboard"""
+    with Image.open(apod_image_path) as img:
+        with io.BytesIO() as output:
+            img.convert("RGB").save(output,"BMP")
+            bit_data = output.getvalue()
+            bit_data = bit_data[14:]
+            #Now put it in the clipboard
+            win32clipboard.OpenClipboard()
+            try:
+                win32clipboard.EmptyClipboard()
+                win32clipboard.SetClipboardData(win32clipboard.CF_DIB,bit_data)
+
+            finally:
+                win32clipboard.CloseClipboard()
 main()
