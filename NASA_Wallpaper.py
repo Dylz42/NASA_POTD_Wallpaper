@@ -4,8 +4,10 @@ import html
 import requests
 import ctypes
 import cv2
+import webbrowser
 from PIL import Image, ImageTk
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 import tkinter as tk
 
 
@@ -13,12 +15,12 @@ APOD_API = "https://science.nasa.gov/wp-json/wp/v2/apod-basic/"
 
 def main():
     """ Main Function """
+
     # Get the Wallpaper, Title and Description from the APOD API
     response = get_wallpaper()
 
     if response is not None:
         wallpaper_path, apod_title, apod_description, apod_media_url, media_type = response
-
 
     else:
         wallpaper_path = None
@@ -27,23 +29,34 @@ def main():
         apod_media_url = None
         media_type = None
 
+    # Set the fitted wallpaper path to None initially
+    fit_wallpaper_path = None
 
     if wallpaper_path is not None:
-    # Fit it to the given screen
-        fit_wallpaper_path = get_fit_wallpaper(wallpaper_path, 1920,1080)
 
-    if not fit_wallpaper_path:
-        fit_wallpaper_path = wallpaper_path
+        # Fit it to the given screen
+        fit_wallpaper_path = get_fit_wallpaper(
+            wallpaper_path,
+            1920,
+            1080
+        )
+
     # Open a window that displays the flavour text of the image recieved
-    display_window(apod_title, apod_description, wallpaper_path, fit_wallpaper_path, apod_media_url, media_type)
-   
+    display_window(
+        apod_title,
+        apod_description,
+        wallpaper_path,
+        fit_wallpaper_path,
+        apod_media_url,
+        media_type
+    )
 
 
 def get_wallpaper():
     """ Get the wallpaper of the day and download it into this file to replace the old one"""
     load_dotenv()
     nasa_key = os.getenv('NASA_KEY')
-    wallpaper_path = os.getenv('WALLPAPER_PATH')
+    wallpaper_directory = os.getenv('WALLPAPER_PATH')
 
     params = {
         "api_key": nasa_key,
@@ -102,6 +115,18 @@ def get_wallpaper():
 
             apod_image_response.raise_for_status()
 
+            url_path = urlparse(apod_image_url).path
+
+            extension = os.path.splitext(url_path)[1]
+
+            if not extension:
+                extension = ".jpg"
+
+            wallpaper_path = os.path.join(
+                wallpaper_directory,
+                f"nasa_apod{extension}"
+)
+
         except requests.RequestException as error:
             print(f"Could not download APOD image: {error}")
 
@@ -126,8 +151,6 @@ def get_wallpaper():
         with open(wallpaper_path, "wb") as file:
             file.write(apod_image_response.content)
 
-        print("Download success")
-
         return [
             wallpaper_path,
             apod_title,
@@ -139,8 +162,6 @@ def get_wallpaper():
     # Handle video and iframe data
     elif media_type in ("video", "iframe"):
 
-        print(f"Today's APOD is a {media_type}.")
-        print(f"APOD page: {apod_page_url}")
 
         return [
             None,
@@ -252,13 +273,20 @@ def display_window(apod_title, apod_description, apod_image_path, apod_fitted_im
 
     # Resizes and adds the image to the application
     if media_type == "image":
-        img = Image.open(apod_image_path)
+        img = Image.open(apod_image_path) 
+        image_panel = tk.Label(display) 
+        image_panel.pack(side="top", fill="both", expand=True)
 
-        img.thumbnail((500,400), Image.Resampling.LANCZOS)
-
-        image = ImageTk.PhotoImage(img)
-        image_panel = tk.Label(display, image = image)
-        image_panel.pack(side = "top", fill = "both", expand = "yes")
+        if getattr(img, "is_animated", False):
+            img.close()
+            play_gif(apod_image_path, image_panel)
+        
+        else:
+            
+            img.thumbnail((500,400), Image.Resampling.LANCZOS)
+            image = ImageTk.PhotoImage(img)
+            image_panel = tk.Label(display, image = image)
+            image_panel.pack(side = "top", fill = "both", expand = "yes")
     
     elif media_type == "video":
         video_panel = tk.Label(display)
@@ -277,6 +305,9 @@ def display_window(apod_title, apod_description, apod_image_path, apod_fitted_im
 
     background_button.pack(side="left")
     fitted_background_button.pack(side="left")
+
+    link_button = tk.Button(button_frame, text="View Source", command=lambda: webbrowser.open(apod_video_url))
+    link_button.pack(side="left", padx=5)
     print("GUI Made!")
     display.mainloop()
 
@@ -306,5 +337,39 @@ def play_video(video_url, video_panel):
             video.release()
 
     update_frame()
+
+def play_gif(gif_path, image_panel):
+    """Play a video on the window based on the given link"""
+    gif = Image.open(gif_path)
+
+    def update_frame(frame_number):
+        """ Update the frame displayed to create the video"""
+        gif.seek(frame_number)
+
+        frame = gif.copy()
+
+        frame.thumbnail(
+            (500, 400),
+            Image.Resampling.LANCZOS
+        )
+
+        photo = ImageTk.PhotoImage(frame)
+
+        image_panel.config(image=photo)
+        image_panel.image = photo
+
+        # Get the duration of this frame from the GIF
+        duration = gif.info.get("duration", 100)
+
+        # Move to the next frame
+        next_frame = (frame_number + 1) % gif.n_frames
+
+        image_panel.after(
+            duration,
+            update_frame,
+            next_frame
+        )
+
+    update_frame(0)
 
 main()
