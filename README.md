@@ -66,6 +66,11 @@ Another challenge involved handling different media formats and adapting to chan
 
 Throughout development, I strengthened my understanding of API integration, GUI development, image processing, external libraries and debugging.
 
+## AI Use
+I was used primarily as a learning tool throughout the development of this project. I used it as a digital tutor to better understand API integration, working with JSON responses, and building graphical user interfaces using Tkinter. The original application was developed independently, without copying or generating code using AI.
+
+AI was later used to assist with modifying the application to accommodate changes to NASA's APOD API, helping ensure continued compatibility with the updated requirements.
+
 
 ## Acknowledgements
 
